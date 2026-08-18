@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets and local runtime outputs
+.env
+.env.*
+!.env.example
+downloads/
+latest_daily_status_extraction.txt
+zulip_catchup_watermarks.json
