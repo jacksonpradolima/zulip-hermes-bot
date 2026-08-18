@@ -1,19 +1,44 @@
 # Zulip Hermes Integration
 
-Generic Zulip integration code for Hermes Agent.
+[![Code Quality](https://github.com/jacksonpradolima/zulip-hermes-bot/actions/workflows/code_quality.yml/badge.svg)](https://github.com/jacksonpradolima/zulip-hermes-bot/actions/workflows/code_quality.yml)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-This repository contains two related components:
+Generic Zulip integration components for Hermes Agent.
 
-1. `zulip_mcp.py` — a readonly MCP server that lets Hermes inspect Zulip history, topics, priority context, and attachments.
-2. `zulip_hermes_bot.py` — an optional standalone Zulip bot bridge that forwards allowed Zulip messages to a local Hermes API server and posts Hermes replies back to Zulip.
+This repository contains two related runtimes:
 
-The code is intentionally generic: credentials, workspace names, company names, and local deployment details belong in `.env` or your private Hermes config, not in Git.
+1. `zulip_hermes.mcp_server` — a readonly MCP server that lets Hermes inspect Zulip history, topics, priority context, and attachments.
+2. `zulip_hermes.bot_bridge` — an optional standalone Zulip bot bridge that forwards allowed Zulip messages to a local Hermes API server and posts Hermes replies back to Zulip.
+
+Root-level scripts remain as compatibility wrappers for existing local configs:
+
+- `zulip_mcp.py`
+- `zulip_hermes_bot.py`
+- `zulip_query.py`
+
+The code is intentionally generic: credentials, workspace names, company names, and local deployment details belong in `.env` or private Hermes config, not in Git.
+
+---
+
+## Contents
+
+- [Features](#features)
+- [Project layout](#project-layout)
+- [Requirements](#requirements)
+- [Configuration](#configuration)
+- [Run the MCP server](#run-the-mcp-server)
+- [Run the bot bridge](#run-the-bot-bridge)
+- [Development](#development)
+- [Security notes](#security-notes)
+
+---
 
 ## Features
 
 ### MCP tools
 
-`zulip_mcp.py` exposes:
+`zulip_hermes.mcp_server` exposes:
 
 - `zulip_search_messages` — generic stream/topic/search history lookup with pagination, client-side fallback scanning, and long-reply chunk reassembly.
 - `zulip_list_topics` — list topics for a stream/channel ID.
@@ -25,7 +50,7 @@ The code is intentionally generic: credentials, workspace names, company names, 
 
 ### Standalone bot bridge
 
-`zulip_hermes_bot.py` supports:
+`zulip_hermes.bot_bridge` supports:
 
 - DM handling.
 - Stream mention gating.
@@ -37,7 +62,7 @@ The code is intentionally generic: credentials, workspace names, company names, 
 
 ### Attachment safety
 
-Attachment handling borrows the security model from the native Hermes Zulip integration:
+Attachment handling follows the security model from the native Hermes Zulip integration:
 
 - only `/user_uploads/...` links are eligible;
 - traversal paths like `..` are rejected;
@@ -46,6 +71,32 @@ Attachment handling borrows the security model from the native Hermes Zulip inte
 - large downloads are bounded before extraction;
 - `.env`, watermarks, downloads, and extraction outputs are ignored by Git.
 
+---
+
+## Project layout
+
+```text
+zulip-hermes-bot/
+├── .github/                 # CI, PR template, issue templates
+├── docs/                    # Architecture and configuration notes
+├── tests/                   # Pytest coverage for core behaviors
+├── zulip_hermes/            # Importable package
+│   ├── bot_bridge.py        # Zulip listener -> local Hermes API
+│   ├── cli.py               # `zulip-hermes` command dispatcher
+│   ├── mcp_server.py        # MCP tools exposed to Hermes
+│   └── query.py             # Lightweight Zulip query helper
+├── zulip_mcp.py             # Backward-compatible MCP wrapper
+├── zulip_hermes_bot.py      # Backward-compatible bot wrapper
+├── zulip_query.py           # Backward-compatible query wrapper
+├── Makefile                 # Common developer commands
+├── pyproject.toml           # Package, tooling, and test configuration
+└── README.md
+```
+
+See `docs/architecture.md` for more detail.
+
+---
+
 ## Requirements
 
 - Python 3.11+
@@ -53,6 +104,8 @@ Attachment handling borrows the security model from the native Hermes Zulip inte
 - Hermes Agent
 - A Zulip bot/API credential
 - Optional: Tesseract OCR for scanned/image-heavy attachments
+
+---
 
 ## Configuration
 
@@ -85,10 +138,22 @@ ZULIP_DEFAULT_TOPIC=status
 ZULIP_TIMEZONE=America/Sao_Paulo
 ```
 
-## Run the MCP server manually
+See `docs/configuration.md` for all environment variables.
+
+---
+
+## Run the MCP server
+
+Compatibility entrypoint:
 
 ```bash
 uv run python zulip_mcp.py
+```
+
+Package CLI:
+
+```bash
+uv run zulip-hermes mcp
 ```
 
 Example Hermes MCP config:
@@ -104,15 +169,6 @@ mcp_servers:
       - python
       - zulip_mcp.py
     enabled: true
-    tools:
-      include:
-        - zulip_search_messages
-        - zulip_list_topics
-        - zulip_read_messages
-        - zulip_priority_context
-        - zulip_extract_recent_attachments
-        - zulip_extract_message_attachments
-        - zulip_extract_attachment_url
 ```
 
 Check it with:
@@ -121,12 +177,20 @@ Check it with:
 hermes mcp test zulip
 ```
 
-## Run the standalone bot bridge
+---
+
+## Run the bot bridge
 
 Start a local Hermes API server/gateway, then run:
 
 ```bash
 uv run python zulip_hermes_bot.py
+```
+
+or:
+
+```bash
+uv run zulip-hermes bot
 ```
 
 Behavior:
@@ -137,6 +201,8 @@ Behavior:
 - Recent topic context is fetched on demand when `ZULIP_CONTEXT_DEPTH` is greater than zero.
 - If `ZULIP_CATCHUP=true`, the bot maintains local stream watermarks and replays bounded missed messages after downtime.
 
+---
+
 ## Development
 
 Install dependencies:
@@ -145,23 +211,22 @@ Install dependencies:
 uv sync --dev
 ```
 
-Run tests:
+Run all local checks:
 
 ```bash
+make check
+```
+
+Run individual checks:
+
+```bash
+uv run ruff check .
+uv run ruff format --check .
 uv run python -m pytest -q
+uv run python -m compileall main.py zulip_hermes zulip_mcp.py zulip_hermes_bot.py zulip_query.py
 ```
 
-Compile-check Python files:
-
-```bash
-uv run python -m compileall main.py zulip_hermes_bot.py zulip_mcp.py zulip_query.py
-```
-
-Scan for accidental organization-specific references before pushing:
-
-```bash
-git grep -n -I -E 'company-name|workspace-name' -- . ':!uv.lock'
-```
+---
 
 ## Security notes
 

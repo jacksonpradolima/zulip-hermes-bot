@@ -1,9 +1,26 @@
+[build-system]
+requires = ["hatchling>=1.29.0"]
+build-backend = "hatchling.build"
+
 [project]
-name = "zulip-hermes-bot"
-version = "0.1.0"
-description = "Add your description here"
+name = "zulip-hermes"
+version = "0.2.0"
+description = "Generic Zulip integration components for Hermes Agent"
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Hermes User", email = "user@example.com" }]
+keywords = ["hermes", "zulip", "mcp", "chatbot", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "beautifulsoup4>=4.15.0",
     "httpx>=0.28.1",
@@ -19,7 +36,61 @@ dependencies = [
     "zulip>=0.9.1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/jacksonpradolima/zulip-hermes-bot"
+Repository = "https://github.com/jacksonpradolima/zulip-hermes-bot"
+Issues = "https://github.com/jacksonpradolima/zulip-hermes-bot/issues"
+
+[project.scripts]
+zulip-hermes = "zulip_hermes.cli:main"
+zulip-hermes-bot = "zulip_hermes.bot_bridge:main"
+
 [dependency-groups]
 dev = [
+    "hatchling>=1.29.0",
+    "pre-commit>=4.5.0",
     "pytest>=9.1.1",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.15.0",
 ]
+
+[tool.hatch.build]
+include = [
+    "zulip_hermes/**",
+    "zulip_mcp.py",
+    "zulip_hermes_bot.py",
+    "zulip_query.py",
+    "main.py",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -v --durations=10"
+xfail_strict = true
+filterwarnings = ["default"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = [
+    "E501",  # Keep long explanatory strings readable.
+    "B904",  # Existing error strings are intentionally user-facing.
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["zulip_hermes", "tests"]
+combine-as-imports = true
+
+[tool.coverage.run]
+source = ["zulip_hermes"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
