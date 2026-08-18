@@ -32,7 +32,7 @@ dependencies = [
     "pytesseract>=0.3.13",
     "python-dotenv>=1.2.2",
     "requests>=2.34.2",
-    "tzdata>=2026.2",
+    "tzdata>=2026.3",
     "zulip>=0.9.1",
 ]
 
