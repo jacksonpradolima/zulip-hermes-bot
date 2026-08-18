@@ -1,3 +1,10 @@
+"""Standalone Zulip bot bridge for forwarding Zulip messages to Hermes.
+
+The module owns message filtering, prompt context assembly, optional catch-up
+watermarks, and response posting for deployments that want a Zulip bot outside
+of the native Hermes gateway.
+"""
+
 from __future__ import annotations
 
 import json
@@ -50,6 +57,13 @@ MAX_ZULIP_MESSAGE_LENGTH = 3900
 
 
 def require_env() -> None:
+    """Require env.
+
+    Returns
+    -------
+    None
+        The operation completes through side effects.
+    """
     missing = []
 
     for name, value in {
@@ -69,10 +83,36 @@ def require_env() -> None:
 
 
 def html_to_text(value: str) -> str:
+    """Convert Zulip HTML content to readable text.
+
+    Parameters
+    ----------
+    value : str
+        Input value.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     return BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True)
 
 
 def chunk_text(text: str, size: int = MAX_ZULIP_MESSAGE_LENGTH) -> list[str]:
+    """Split text into Zulip-safe message chunks.
+
+    Parameters
+    ----------
+    text : str
+        Source text.
+    size : int
+        Input value.
+
+    Returns
+    -------
+    list[str]
+        Text items produced by the helper.
+    """
     text = text.strip()
     if not text:
         return ["_Sem resposta._"]
@@ -92,14 +132,50 @@ def chunk_text(text: str, size: int = MAX_ZULIP_MESSAGE_LENGTH) -> list[str]:
 
 
 def is_stream_message(msg: dict) -> bool:
+    """Check whether a Zulip message came from a stream.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    bool
+        Whether the requested condition is true.
+    """
     return msg.get("type") == "stream"
 
 
 def is_dm_message(msg: dict) -> bool:
+    """Check whether a Zulip message is a direct message.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    bool
+        Whether the requested condition is true.
+    """
     return msg.get("type") in {"private", "direct"}
 
 
 def get_stream_name(msg: dict) -> str:
+    """Return the stream display name from a Zulip message.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     display_recipient = msg.get("display_recipient")
 
     if isinstance(display_recipient, str):
@@ -110,6 +186,18 @@ def get_stream_name(msg: dict) -> str:
 
 
 def get_topic(msg: dict) -> str:
+    """Return the topic or subject from a Zulip message.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     return msg.get("subject") or msg.get("topic") or "(no topic)"
 
 
@@ -117,9 +205,28 @@ class CatchupState:
     """Small forward-only JSON watermark store for optional missed-message catch-up."""
 
     def __init__(self, path: Path):
+        """Init.
+
+        Parameters
+        ----------
+        path : Path
+            Local filesystem path.
+
+        Returns
+        -------
+        None
+            The operation completes through side effects.
+        """
         self.path = path
 
     def read(self) -> dict[str, int]:
+        """Read the current watermark for a stream.
+
+        Returns
+        -------
+        dict[str, int]
+            Result produced by the helper.
+        """
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except Exception:
@@ -137,6 +244,20 @@ class CatchupState:
         return clean
 
     def advance(self, stream_name: str, message_id: int) -> None:
+        """Advance a stream watermark monotonically.
+
+        Parameters
+        ----------
+        stream_name : str
+            Input value.
+        message_id : int
+            Zulip message identifier.
+
+        Returns
+        -------
+        None
+            The operation completes through side effects.
+        """
         if not stream_name or message_id <= 0:
             return
         data = self.read()
@@ -150,6 +271,20 @@ class CatchupState:
 
 
 def stream_requires_mention(stream_name: str, stream_id: int | str | None = None) -> bool:
+    """Determine whether a stream message must mention the bot.
+
+    Parameters
+    ----------
+    stream_name : str
+        Input value.
+    stream_id : int | str | None
+        Zulip stream identifier.
+
+    Returns
+    -------
+    bool
+        Whether the requested condition is true.
+    """
     if not ZULIP_REQUIRE_MENTION:
         return False
     stream_key = (stream_name or "").strip().lower()
@@ -158,6 +293,22 @@ def stream_requires_mention(stream_name: str, stream_id: int | str | None = None
 
 
 def was_bot_mentioned(msg: dict, bot_user_id: int, bot_full_name: str) -> bool:
+    """Detect whether a message mentioned the Zulip bot.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+    bot_user_id : int
+        Input value.
+    bot_full_name : str
+        Input value.
+
+    Returns
+    -------
+    bool
+        Whether the requested condition is true.
+    """
     flags = set(msg.get("flags") or [])
 
     if "mentioned" in flags or "wildcard_mentioned" in flags:
@@ -176,6 +327,20 @@ def was_bot_mentioned(msg: dict, bot_user_id: int, bot_full_name: str) -> bool:
 
 
 def clean_user_text(msg: dict, bot_full_name: str) -> str:
+    """Remove bot mentions from user-visible text.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+    bot_full_name : str
+        Input value.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     text = html_to_text(msg.get("content", ""))
 
     # Remove common rendered mention forms.
@@ -188,6 +353,18 @@ def clean_user_text(msg: dict, bot_full_name: str) -> str:
 
 
 def format_context_message(msg: dict) -> str:
+    """Format one recent message for prompt context.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     ts = datetime.fromtimestamp(msg["timestamp"], TIMEZONE).strftime("%Y-%m-%d %H:%M")
     sender = msg.get("sender_full_name") or msg.get("sender_email") or "Unknown"
     topic = get_topic(msg)
@@ -197,6 +374,22 @@ def format_context_message(msg: dict) -> str:
 
 
 def fetch_recent_topic_context(client: zulip.Client, msg: dict, bot_email: str) -> str:
+    """Fetch recent topic messages for prompt context.
+
+    Parameters
+    ----------
+    client : zulip.Client
+        Authenticated Zulip API client.
+    msg : dict
+        Zulip message payload.
+    bot_email : str
+        Input value.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     if not is_stream_message(msg):
         return ""
 
@@ -247,6 +440,18 @@ def fetch_recent_topic_context(client: zulip.Client, msg: dict, bot_email: str) 
 
 
 def build_session_key(msg: dict) -> str:
+    """Build a stable Hermes session key for a Zulip conversation.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     if is_stream_message(msg):
         stream_id = msg.get("stream_id", "unknown-stream")
         topic = get_topic(msg)
@@ -258,6 +463,18 @@ def build_session_key(msg: dict) -> str:
 
 
 def stream_name_from_message(msg: dict) -> str:
+    """Return a stream identifier suitable for watermark keys.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     recipient = msg.get("display_recipient")
     if isinstance(recipient, str):
         return recipient
@@ -265,6 +482,20 @@ def stream_name_from_message(msg: dict) -> str:
 
 
 def update_catchup_watermark(state: CatchupState, msg: dict) -> None:
+    """Advance the watermark for a processed stream message.
+
+    Parameters
+    ----------
+    state : CatchupState
+        Catch-up watermark state.
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    None
+        The operation completes through side effects.
+    """
     if not is_stream_message(msg):
         return
     stream_name = stream_name_from_message(msg).lower()
@@ -341,6 +572,22 @@ def run_missed_message_catchup(client: zulip.Client, state: CatchupState, handle
 
 
 def call_hermes(user_text: str, context: str, session_key: str) -> str:
+    """Send a Zulip user request to the local Hermes API.
+
+    Parameters
+    ----------
+    user_text : str
+        User-authored request text.
+    context : str
+        Input value.
+    session_key : str
+        Stable Hermes conversation key.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     system_prompt = """
 Você é um assistente Hermes dentro do Zulip.
 
@@ -394,6 +641,22 @@ Regras:
 
 
 def send_reply(client: zulip.Client, source_msg: dict, content: str) -> None:
+    """Post one or more reply chunks back to Zulip.
+
+    Parameters
+    ----------
+    client : zulip.Client
+        Authenticated Zulip API client.
+    source_msg : dict
+        Input value.
+    content : str
+        Zulip message content.
+
+    Returns
+    -------
+    None
+        The operation completes through side effects.
+    """
     chunks = chunk_text(content)
 
     for chunk in chunks:
@@ -423,6 +686,13 @@ def send_reply(client: zulip.Client, source_msg: dict, content: str) -> None:
 
 
 def main() -> None:
+    """Run the command-line entrypoint.
+
+    Returns
+    -------
+    None
+        The operation completes through side effects.
+    """
     require_env()
 
     client = zulip.Client(
@@ -444,6 +714,18 @@ def main() -> None:
     catchup_state = CatchupState(ZULIP_CATCHUP_WATERMARKS)
 
     def handle_message(msg: dict) -> None:
+        """Process one Zulip message from the live event loop.
+
+        Parameters
+        ----------
+        msg : dict
+            Zulip message payload.
+
+        Returns
+        -------
+        None
+            The operation completes through side effects.
+        """
         try:
             if is_stream_message(msg):
                 update_catchup_watermark(catchup_state, msg)

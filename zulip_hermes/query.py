@@ -1,3 +1,9 @@
+"""Lightweight Zulip query helper for local debugging.
+
+The helper fetches recent messages from a configured stream/topic and prints
+plain-text output that is easy to inspect in a terminal.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -19,10 +25,29 @@ TIMEZONE = ZoneInfo("America/Sao_Paulo")
 
 
 def html_to_text(value: str) -> str:
+    """Convert Zulip HTML content to readable text.
+
+    Parameters
+    ----------
+    value : str
+        Input value.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     return BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True)
 
 
 def get_client() -> zulip.Client:
+    """Create an authenticated Zulip API client.
+
+    Returns
+    -------
+    zulip.Client
+        Result produced by the helper.
+    """
     if not ZULIP_SITE_URL or not ZULIP_BOT_EMAIL or not ZULIP_API_KEY:
         raise SystemExit("Missing ZULIP_SITE_URL, ZULIP_BOT_EMAIL, or ZULIP_API_KEY in .env")
 
@@ -34,6 +59,13 @@ def get_client() -> zulip.Client:
 
 
 def main() -> None:
+    """Run the command-line entrypoint.
+
+    Returns
+    -------
+    None
+        The operation completes through side effects.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--channel", required=True)
     parser.add_argument("--topic")

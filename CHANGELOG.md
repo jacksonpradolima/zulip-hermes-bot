@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- MkDocs Material documentation site with generated API reference.
+- GitHub Pages build and deployment workflow.
+- NumPy-style docstrings for all modules, classes, methods, and functions.
+- Automated tests that enforce docstring coverage and NumPy section formatting.
 - Packaged `zulip_hermes` module layout.
 - Generic `zulip-hermes` CLI with `mcp`, `bot`, and `query` subcommands.
 - `zulip_search_messages` MCP tool with stream/topic filtering, pagination, fallback scanning, and long-message chunk reassembly.

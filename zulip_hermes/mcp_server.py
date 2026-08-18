@@ -1,3 +1,9 @@
+"""Readonly Zulip MCP tools for Hermes Agent.
+
+This module exposes stream/topic search, priority-context collection, and safe
+attachment extraction through the FastMCP stdio server used by Hermes.
+"""
+
 from __future__ import annotations
 
 import json
@@ -55,12 +61,26 @@ TESSERACT_CMD = os.getenv(
 
 @dataclass
 class AttachmentCandidate:
+    """Represent a safe Zulip upload candidate.
+
+    Notes
+    -----
+    This class supports the Zulip Hermes integration internals.
+    """
+
     url: str
     label: str
     source: str
 
 
 def get_client() -> zulip.Client:
+    """Create an authenticated Zulip API client.
+
+    Returns
+    -------
+    zulip.Client
+        Result produced by the helper.
+    """
     if not ZULIP_SITE_URL or not ZULIP_BOT_EMAIL or not ZULIP_API_KEY:
         raise RuntimeError("Missing ZULIP_SITE_URL, ZULIP_BOT_EMAIL, or ZULIP_API_KEY in .env")
 
@@ -72,14 +92,54 @@ def get_client() -> zulip.Client:
 
 
 def html_to_text(value: str) -> str:
+    """Convert Zulip HTML content to readable text.
+
+    Parameters
+    ----------
+    value : str
+        Input value.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     return BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True)
 
 
 def msg_topic(msg: dict) -> str:
+    """Return the topic or subject for a Zulip message.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     return msg.get("subject") or msg.get("topic") or ""
 
 
 def format_message(msg: dict, tz: ZoneInfo, include_id: bool = True) -> str:
+    """Render a Zulip message for terminal or prompt context.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+    tz : ZoneInfo
+        Input value.
+    include_id : bool
+        Input value.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     ts = datetime.fromtimestamp(msg["timestamp"], tz)
     sender = msg.get("sender_full_name") or msg.get("sender_email") or "Unknown"
     topic = msg_topic(msg)
@@ -93,12 +153,36 @@ _USER_UPLOAD_LINK_RE = re.compile(r"\(((?:https?://[^()\s]+)?/user_uploads/[^()\
 
 
 def is_same_zulip_host(url: str) -> bool:
+    """Check whether a URL belongs to the configured Zulip realm.
+
+    Parameters
+    ----------
+    url : str
+        URL or upload path to validate.
+
+    Returns
+    -------
+    bool
+        Whether the requested condition is true.
+    """
     base = urlparse(ZULIP_SITE_URL)
     parsed = urlparse(url)
     return parsed.scheme in {"http", "https"} and parsed.netloc == base.netloc
 
 
 def normalize_url(url: str) -> str:
+    """Normalize a Zulip upload URL or path.
+
+    Parameters
+    ----------
+    url : str
+        URL or upload path to validate.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     return urljoin(ZULIP_SITE_URL + "/", url)
 
 
@@ -158,6 +242,18 @@ def upload_path_from_url(url: str) -> str | None:
 
 
 def looks_like_upload_url(url: str) -> bool:
+    """Check whether a value resembles a Zulip upload URL.
+
+    Parameters
+    ----------
+    url : str
+        URL or upload path to validate.
+
+    Returns
+    -------
+    bool
+        Whether the requested condition is true.
+    """
     return upload_path_from_url(url) is not None
 
 
@@ -170,10 +266,38 @@ def safe_attachment_url(url: str) -> bool:
 
 
 def extract_attachment_candidates_from_html(html: str) -> list[AttachmentCandidate]:
+    """Find safe attachment candidates in rendered Zulip HTML.
+
+    Parameters
+    ----------
+    html : str
+        HTML fragment returned by Zulip.
+
+    Returns
+    -------
+    list[AttachmentCandidate]
+        Result produced by the helper.
+    """
     soup = BeautifulSoup(html or "", "html.parser")
     candidates: list[AttachmentCandidate] = []
 
     def add_path(path: str, label: str, source: str) -> None:
+        """Add a validated upload path to the candidate list.
+
+        Parameters
+        ----------
+        path : str
+            Local filesystem path.
+        label : str
+            Input value.
+        source : str
+            Input value.
+
+        Returns
+        -------
+        None
+            The operation completes through side effects.
+        """
         full_url = normalize_url(path)
         candidates.append(
             AttachmentCandidate(
@@ -211,10 +335,36 @@ def extract_attachment_candidates_from_html(html: str) -> list[AttachmentCandida
 
 
 def extract_attachment_candidates_from_message(msg: dict) -> list[AttachmentCandidate]:
+    """Find safe attachment candidates in a Zulip message.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    list[AttachmentCandidate]
+        Result produced by the helper.
+    """
     return extract_attachment_candidates_from_html(msg.get("content", ""))
 
 
 def filename_from_response(url: str, response: requests.Response) -> str:
+    """Choose a safe filename for a downloaded attachment.
+
+    Parameters
+    ----------
+    url : str
+        URL or upload path to validate.
+    response : requests.Response
+        Completed HTTP response.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     content_disposition = response.headers.get("content-disposition", "")
 
     match = re.search(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', content_disposition)
@@ -231,11 +381,37 @@ def filename_from_response(url: str, response: requests.Response) -> str:
 
 
 def sanitize_filename(name: str) -> str:
+    """Sanitize a filename for local filesystem use.
+
+    Parameters
+    ----------
+    name : str
+        Environment variable name.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', "_", name).strip()
     return name or "zulip-attachment.bin"
 
 
 def download_attachment(candidate: AttachmentCandidate, target_dir: Path) -> Path:
+    """Download a Zulip attachment through an authenticated URL.
+
+    Parameters
+    ----------
+    candidate : AttachmentCandidate
+        Validated attachment candidate.
+    target_dir : Path
+        Directory used for downloaded files.
+
+    Returns
+    -------
+    Path
+        Result produced by the helper.
+    """
     upload_path = upload_path_from_url(candidate.url)
     if not upload_path:
         raise ValueError("Refusing to download non-Zulip upload URL")
@@ -483,6 +659,13 @@ def extract_pdf_text(path: Path) -> str:
 
 
 def configure_tesseract() -> None:
+    """Configure the optional Tesseract executable.
+
+    Returns
+    -------
+    None
+        The operation completes through side effects.
+    """
     try:
         import pytesseract
 
@@ -493,6 +676,18 @@ def configure_tesseract() -> None:
 
 
 def ocr_image_file(path: Path) -> str:
+    """Run OCR over an image file.
+
+    Parameters
+    ----------
+    path : Path
+        Local filesystem path.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     configure_tesseract()
 
     import pytesseract
@@ -507,6 +702,18 @@ def ocr_image_file(path: Path) -> str:
 
 
 def ocr_gif_file(path: Path) -> str:
+    """Run OCR over sampled GIF frames.
+
+    Parameters
+    ----------
+    path : Path
+        Local filesystem path.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     configure_tesseract()
 
     import pytesseract
@@ -532,6 +739,18 @@ def ocr_gif_file(path: Path) -> str:
 
 
 def ocr_pdf_file(path: Path) -> str:
+    """Render and OCR a bounded number of PDF pages.
+
+    Parameters
+    ----------
+    path : Path
+        Local filesystem path.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     configure_tesseract()
 
     import fitz  # PyMuPDF
@@ -565,6 +784,18 @@ def ocr_pdf_file(path: Path) -> str:
 
 
 def fallback_ocr(path: Path) -> str:
+    """Run an OCR fallback selected by file type.
+
+    Parameters
+    ----------
+    path : Path
+        Local filesystem path.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     ext = path.suffix.lower()
 
     image_exts = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
@@ -637,6 +868,20 @@ def extract_file_text(path: Path) -> str:
 
 
 def truncate_text(text: str, max_chars: int) -> str:
+    """Truncate extracted text for prompt-safe output.
+
+    Parameters
+    ----------
+    text : str
+        Source text.
+    max_chars : int
+        Input value.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     text = text or ""
     if len(text) <= max_chars:
         return text
@@ -645,6 +890,18 @@ def truncate_text(text: str, max_chars: int) -> str:
 
 
 def get_message_by_id(message_id: int) -> dict:
+    """Fetch a Zulip message by identifier.
+
+    Parameters
+    ----------
+    message_id : int
+        Zulip message identifier.
+
+    Returns
+    -------
+    dict
+        Normalized data produced by the helper.
+    """
     url = f"{ZULIP_SITE_URL}/api/v1/messages/{message_id}"
 
     response = requests.get(
@@ -675,6 +932,28 @@ def get_recent_messages(
     query: str | None = None,
     timezone: str = DEFAULT_TIMEZONE,
 ) -> list[dict]:
+    """Fetch recent Zulip messages for a channel and topic window.
+
+    Parameters
+    ----------
+    channel : str
+        Zulip channel or stream name.
+    topic : str | None
+        Zulip topic name.
+    limit : int
+        Maximum output size.
+    today_only : bool
+        Input value.
+    query : str | None
+        Full-text search query.
+    timezone : str
+        Input value.
+
+    Returns
+    -------
+    list[dict]
+        Result produced by the helper.
+    """
     tz = ZoneInfo(timezone)
     today = datetime.now(tz).date()
 
@@ -715,6 +994,18 @@ def get_recent_messages(
 
 
 def render_attachment_summary_for_message(msg: dict) -> str:
+    """Render attachment links for a message summary.
+
+    Parameters
+    ----------
+    msg : dict
+        Zulip message payload.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     candidates = extract_attachment_candidates_from_message(msg)
 
     if not candidates:
@@ -731,6 +1022,18 @@ def render_attachment_summary_for_message(msg: dict) -> str:
 
 
 def extract_candidates_from_messages(messages: Iterable[dict]) -> list[tuple[dict, AttachmentCandidate]]:
+    """Collect safe attachment candidates from messages.
+
+    Parameters
+    ----------
+    messages : Iterable[dict]
+        Zulip messages to process.
+
+    Returns
+    -------
+    list[tuple[dict, AttachmentCandidate]]
+        Result produced by the helper.
+    """
     results: list[tuple[dict, AttachmentCandidate]] = []
 
     # Zulip commonly returns messages oldest -> newest for a window.
@@ -754,6 +1057,24 @@ def convert_candidates_to_text(
     max_chars_per_file: int = MAX_CHARS_PER_FILE,
     max_total_chars: int = MAX_TOTAL_CHARS,
 ) -> str:
+    """Download attachments and convert them to text.
+
+    Parameters
+    ----------
+    items : list[tuple[dict | None, AttachmentCandidate]]
+        Input value.
+    max_files : int
+        Input value.
+    max_chars_per_file : int
+        Input value.
+    max_total_chars : int
+        Input value.
+
+    Returns
+    -------
+    str
+        Text produced by the helper.
+    """
     if not items:
         return "No Zulip upload attachments found."
 
@@ -843,6 +1164,20 @@ def _content_needles_from_query(query: str | None) -> list[str]:
 
 
 def _content_matches_needles(content: str, needles: list[str]) -> bool:
+    """Check whether message content contains every search term.
+
+    Parameters
+    ----------
+    content : str
+        Zulip message content.
+    needles : list[str]
+        Normalized search terms.
+
+    Returns
+    -------
+    bool
+        Whether the requested condition is true.
+    """
     if not needles:
         return True
     haystack = (content or "").casefold()
@@ -850,6 +1185,18 @@ def _content_matches_needles(content: str, needles: list[str]) -> bool:
 
 
 def _parse_chunk_marker(content: str) -> tuple[str, int, int] | None:
+    """Parse a trailing Hermes chunk marker.
+
+    Parameters
+    ----------
+    content : str
+        Zulip message content.
+
+    Returns
+    -------
+    tuple[str, int, int] | None
+        Result produced by the helper.
+    """
     if not content:
         return None
     match = _CHUNK_MARKER_RE.search(content)
@@ -863,6 +1210,18 @@ def _parse_chunk_marker(content: str) -> tuple[str, int, int] | None:
 
 
 def _format_raw_search_message(msg: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a raw Zulip message for search output.
+
+    Parameters
+    ----------
+    msg : dict[str, Any]
+        Zulip message payload.
+
+    Returns
+    -------
+    dict[str, Any]
+        Result produced by the helper.
+    """
     return {
         "id": msg.get("id"),
         "sender": msg.get("sender_full_name") or msg.get("sender_email", "?"),
@@ -874,6 +1233,20 @@ def _format_raw_search_message(msg: dict[str, Any]) -> dict[str, Any]:
 
 
 def _merge_messages_by_id(primary: list[dict[str, Any]], extra: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Merge message lists while preserving one item per message ID.
+
+    Parameters
+    ----------
+    primary : list[dict[str, Any]]
+        Input value.
+    extra : list[dict[str, Any]]
+        Input value.
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        Result produced by the helper.
+    """
     by_id: dict[Any, dict[str, Any]] = {}
     for msg in extra:
         if msg.get("id") is not None:
@@ -945,6 +1318,24 @@ def _expand_partial_hermes_chunks(
     narrow: list[dict[str, str]] | None,
     max_expansions: int = 5,
 ) -> list[dict[str, Any]]:
+    """Expand partial long-reply chunks into complete groups.
+
+    Parameters
+    ----------
+    client : Any
+        Authenticated Zulip API client.
+    messages : list[dict[str, Any]]
+        Zulip messages to process.
+    narrow : list[dict[str, str]] | None
+        Input value.
+    max_expansions : int
+        Input value.
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        Result produced by the helper.
+    """
     by_id = {m["id"]: m for m in messages if m.get("id") is not None}
     expansions = 0
     for msg in list(by_id.values()):

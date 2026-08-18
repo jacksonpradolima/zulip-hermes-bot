@@ -1,10 +1,13 @@
 # Zulip Hermes Integration
 
 [![Code Quality](https://github.com/jacksonpradolima/zulip-hermes-bot/actions/workflows/code_quality.yml/badge.svg)](https://github.com/jacksonpradolima/zulip-hermes-bot/actions/workflows/code_quality.yml)
+[![Documentation](https://github.com/jacksonpradolima/zulip-hermes-bot/actions/workflows/docs.yml/badge.svg)](https://jacksonpradolima.github.io/zulip-hermes-bot/)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 Generic Zulip integration components for Hermes Agent.
+
+**Documentation:** https://jacksonpradolima.github.io/zulip-hermes-bot/
 
 This repository contains two related runtimes:
 
@@ -215,6 +218,13 @@ Run all local checks:
 
 ```bash
 make check
+```
+
+Build or preview the documentation:
+
+```bash
+make docs
+make docs-serve
 ```
 
 Run individual checks:

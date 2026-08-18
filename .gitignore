@@ -19,6 +19,7 @@ ENV/
 # Build and packaging
 build/
 dist/
+site/
 wheels/
 *.egg-info/
 .eggs/
