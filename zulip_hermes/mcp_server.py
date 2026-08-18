@@ -30,7 +30,10 @@ logging.getLogger("pdfminer").setLevel(logging.ERROR)
 logging.getLogger("pdfminer.pdffont").setLevel(logging.ERROR)
 logging.getLogger("PIL").setLevel(logging.ERROR)
 
-load_dotenv()
+# Hermes starts stdio MCP servers from its own process directory, not from this
+# project directory. Resolve the project's private .env explicitly so the MCP
+# server works after `hermes mcp add` regardless of Hermes's working directory.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 mcp = FastMCP("zulip-hermes-readonly")
 

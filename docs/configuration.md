@@ -29,21 +29,18 @@ Configuration is environment-driven. Copy `.env.example` to `.env` and fill plac
 
 ## Hermes MCP config
 
-The recommended command keeps the project path explicit and preserves compatibility:
+Register the server through the Hermes CLI rather than manually editing Hermes
+configuration. Hermes stores the command in the active profile and launches the
+server on demand; it does not copy this repository into a Hermes directory.
+Replace `<ABSOLUTE_PROJECT_PATH>` with the stable local checkout path:
 
-```yaml
-mcp_servers:
-  zulip:
-    command: uv
-    args:
-      - run
-      - --project
-      - /path/to/zulip-hermes-bot
-      - python
-      - zulip_mcp.py
+```bash
+hermes mcp add zulip --command uv --args run --project <ABSOLUTE_PROJECT_PATH> python <ABSOLUTE_PROJECT_PATH>/zulip_mcp.py
 ```
 
-Test with:
+The MCP server resolves `.env` from its project directory, so credentials stay
+in the ignored project-local file rather than in the Hermes MCP command. Test
+the setup with:
 
 ```bash
 hermes mcp test zulip

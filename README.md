@@ -29,6 +29,7 @@ The code is intentionally generic: credentials, workspace names, company names, 
 - [Features](#features)
 - [Project layout](#project-layout)
 - [Requirements](#requirements)
+- [Quick start: plug into Hermes](#quick-start-plug-into-hermes)
 - [Configuration](#configuration)
 - [Run the MCP server](#run-the-mcp-server)
 - [Run the bot bridge](#run-the-bot-bridge)
@@ -110,6 +111,66 @@ See `docs/architecture.md` for more detail.
 
 ---
 
+## Quick start: plug into Hermes
+
+Use the MCP server for the normal Hermes integration. Hermes does **not** copy
+this repository into its own directory or install it as a skill: it stores one
+MCP configuration entry that starts this project's local server whenever a new
+Hermes session needs Zulip tools.
+
+1. Clone the repository into a stable local directory (do not use a temporary
+   checkout), then install its locked dependencies:
+
+   ```bash
+   git clone https://github.com/jacksonpradolima/zulip-hermes-bot.git
+   cd zulip-hermes-bot
+   uv sync --frozen
+   ```
+
+2. Create the private local configuration and fill in the Zulip credentials:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Keep `.env` in the project directory. It is ignored by Git and is loaded by
+   the MCP server even when Hermes starts it from another working directory.
+
+3. Register the local server with Hermes. Replace `<ABSOLUTE_PROJECT_PATH>`
+   with the path from step 1. On Windows, use forward slashes, for example
+   `C:/Users/alice/tools/zulip-hermes-bot`.
+
+   ```bash
+   hermes mcp add zulip --command uv --args run --project <ABSOLUTE_PROJECT_PATH> python <ABSOLUTE_PROJECT_PATH>/zulip_mcp.py
+   ```
+
+4. Verify discovery:
+
+   ```bash
+   hermes mcp test zulip
+   ```
+
+   A successful setup reports seven readonly Zulip tools. Start a **new**
+   Hermes session (or use `/reset`) before expecting the new tools in chat;
+   Hermes keeps the tool list stable within an existing conversation.
+
+### Updating later
+
+The Hermes configuration continues to point at the same local directory, so
+updating does not require registering the MCP server again:
+
+```bash
+cd <ABSOLUTE_PROJECT_PATH>
+git pull --ff-only
+uv sync --frozen
+hermes mcp test zulip
+```
+
+To remove it completely, run `hermes mcp remove zulip` and then delete the
+local clone if it is no longer needed.
+
+---
+
 ## Configuration
 
 Create a local `.env` file from the example:
@@ -159,22 +220,9 @@ Package CLI:
 uv run zulip-hermes mcp
 ```
 
-Example Hermes MCP config:
-
-```yaml
-mcp_servers:
-  zulip:
-    command: uv
-    args:
-      - run
-      - --project
-      - /path/to/zulip-hermes-bot
-      - python
-      - zulip_mcp.py
-    enabled: true
-```
-
-Check it with:
+Prefer the `hermes mcp add` command in the quick start above. It writes the
+correct profile-specific Hermes configuration and avoids hand-editing internal
+YAML. Check the connection with:
 
 ```bash
 hermes mcp test zulip
